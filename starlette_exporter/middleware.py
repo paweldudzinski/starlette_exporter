@@ -1,34 +1,38 @@
 """ Middleware for exporting Prometheus metrics using Starlette """
 import time
 from prometheus_client import Counter, Histogram
+from starlette import status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 from logging import getLogger
 
 logger = getLogger("exporter")
 
-REQUEST_TIME = Histogram(
-            'starlette_request_duration_seconds',
-            'HTTP request duration, in seconds',
-            ('method', 'path', 'status_code'),
-        )
 
-REQUEST_COUNT = Counter(
-            'starlette_requests_total',
-            'Total HTTP requests',
-            ('method', 'path', 'status_code'),
-        )
+def make_request_time_histogram(app_name):
+    return Histogram(
+        f"{app_name}_request_duration_seconds",
+        "HTTP request duration, in seconds",
+        ("method", "path", "status_code", "app_name"),
+    )
+
+
+def make_request_time_counter(app_name):
+    return Counter(
+        f"{app_name}_requests_total",
+        "Total HTTP requests",
+        ("method", "path", "status_code", "app_name"),
+    )
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     """ Middleware that collects Prometheus metrics for each request.
         Use in conjuction with the Prometheus exporter endpoint handler.
     """
-
-
-
-    def __init__(self, app: ASGIApp, group_paths: bool = False):
+    def __init__(self, app: ASGIApp, group_paths: bool = False, app_name: str = "starlette"):
         super().__init__(app)
         self.group_paths = group_paths
+        self.app_name = app_name
 
     async def dispatch(self, request, call_next):
         method = request.method
@@ -37,7 +41,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
         # Default status code used when the application does not return a valid response
         # or an unhandled exception occurs.
-        status_code = 500
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
 
         try:
             response = await call_next(request)
@@ -57,7 +61,11 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
             end = time.time()
 
-            REQUEST_COUNT.labels(method, path, status_code).inc()
-            REQUEST_TIME.labels(method, path, status_code).observe(end - begin)
+            REQUEST_COUNT = make_request_time_counter(app_name=self.app_name)
+            REQUEST_TIME = make_request_time_histogram(app_name=self.app_name)
+            labels = [method, path, status_code, self.app_name]
+
+            REQUEST_COUNT.labels(*labels).inc()
+            REQUEST_TIME.labels(*labels).observe(end - begin)
 
         return response

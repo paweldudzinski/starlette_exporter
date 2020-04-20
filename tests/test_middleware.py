@@ -1,14 +1,13 @@
 import pytest
 
-from logging import getLogger
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 from starlette.responses import JSONResponse
 from starlette.exceptions import HTTPException
 from starlette_exporter import PrometheusMiddleware, handle_metrics
 
-class TestMiddleware:
 
+class TestMiddleware:
     @pytest.fixture
     def app(self):
         """ create a test app with various endpoints for the test scenarios """
