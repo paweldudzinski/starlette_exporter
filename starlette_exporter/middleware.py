@@ -8,21 +8,18 @@ from logging import getLogger
 
 logger = getLogger("exporter")
 
-
-def make_request_time_histogram(app_name):
-    return Histogram(
-        f"{app_name}_request_duration_seconds",
-        "HTTP request duration, in seconds",
-        ("method", "path", "status_code", "app_name"),
-    )
+REQUEST_TIME = Histogram(
+    f"starlette_request_duration_seconds",
+    "HTTP request duration, in seconds",
+    ("method", "path", "status_code", "app_name"),
+)
 
 
-def make_request_time_counter(app_name):
-    return Counter(
-        f"{app_name}_requests_total",
-        "Total HTTP requests",
-        ("method", "path", "status_code", "app_name"),
-    )
+REQUEST_COUNT = Counter(
+    f"starlette_requests_total",
+    "Total HTTP requests",
+    ("method", "path", "status_code", "app_name"),
+)
 
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
@@ -61,8 +58,6 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
             end = time.time()
 
-            REQUEST_COUNT = make_request_time_counter(app_name=self.app_name)
-            REQUEST_TIME = make_request_time_histogram(app_name=self.app_name)
             labels = [method, path, status_code, self.app_name]
 
             REQUEST_COUNT.labels(*labels).inc()
